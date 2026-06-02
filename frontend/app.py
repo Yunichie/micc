@@ -9,12 +9,11 @@ st.title("Hello, world!")
 
 if st.button("Check Backend Health"):
     try:
-        response = httpx.get(f"{BACKEND_URL}/api/health")
+        response = httpx.get(f"{BACKEND_URL}/health")
         response.raise_for_status()
 
         data = response.json()
         st.success(f"Status: {data['status']}")
-        st.info(f"Message: {data['message']}")
 
     except httpx.RequestError as e:
         st.error(f"Failed to connect to backend: {e}")

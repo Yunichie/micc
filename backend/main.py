@@ -1,12 +1,25 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from backend.api.router import router
+from backend.core.config import settings
 
-app = FastAPI(title="Backend API")
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    description="High-performance image compression and conversion API",
+    version="1.0.0"
+)
 
-class MessageResponse(BaseModel):
-    message: str
-    status: str
+# Allow cross-origin requests from the Streamlit frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # In production, restrict this to the frontend origin
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/api/health", response_model=MessageResponse)
+app.include_router(router, prefix=settings.API_V1_STR)
+
+@app.get("/health")
 async def health_check():
-    return {"message": "FastAPI is running", "status": "ok"}
+    return {"status": "ok"}
