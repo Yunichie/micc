@@ -1,19 +1,46 @@
 import streamlit as st
-import httpx
+from api_client import check_health, convert_images
 
-# Configuration
-BACKEND_URL = "http://localhost:8000"
+
 st.set_page_config(page_title="Streamlit Frontend", layout="centered")
 
-st.title("Hello, world!")
+st.title("Image Converter")
 
-if st.button("Check Backend Health"):
-    try:
-        response = httpx.get(f"{BACKEND_URL}/health")
-        response.raise_for_status()
+# Check backend health
+with st.sidebar:
+    st.header("Status Sistem")
+    health_status = check_health()
+    if health_status:
+        st.success("Backend terhubung")
+    else:
+        st.error("Backend tidak terhubung")
 
-        data = response.json()
-        st.success(f"Status: {data['status']}")
+# Form Input
+uploaded_files = st.file_uploader(
+    "Unggah gambar...",
+    type=["jpg", "jpeg", "png", "webp"],
+    accept_multiple_files=True
+)
 
-    except httpx.RequestError as e:
-        st.error(f"Failed to connect to backend: {e}")
+col1, col2 = st.columns(2)
+with col1:
+    target_format = st.selectbox("Pilih format target", ["jpg", "jpeg", "png", "webp"])
+with col2:
+    quality = st.slider("Kualitas (%)", min_value=1, max_value=100, value=80)
+
+# Convert Button
+if st.button("Konversi", type="primary"):
+    if not uploaded_files:
+        st.warning("Silakan unggah setidaknya satu gambar.")
+    else:
+        with st.spinner("Mengonversi gambar..."):
+            zip_result = convert_images(uploaded_files, target_format, quality)
+            
+            if zip_result:
+                st.success("Gambar berhasil dikonversi!")
+                st.download_button(
+                    label="Unduh Hasil Konversi (ZIP)",
+                    data=zip_result,
+                    file_name="converted_images.zip",
+                    mime="application/zip"
+                )
