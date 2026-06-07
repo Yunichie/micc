@@ -7,8 +7,19 @@ from PIL import Image
 
 from backend.core.config import settings
 
-# Process pool for CPU bound image compression
-_pool = ProcessPoolExecutor(max_workers=settings.MAX_WORKERS)
+_pool: Optional[ProcessPoolExecutor] = None
+
+
+def init_pool() -> None:
+    global _pool
+    _pool = ProcessPoolExecutor(max_workers=settings.MAX_WORKERS)
+
+
+def shutdown_pool() -> None:
+    global _pool
+    if _pool is not None:
+        _pool.shutdown(wait=True)
+        _pool = None
 
 
 def compress_image_sync(
@@ -23,38 +34,37 @@ def compress_image_sync(
 
     with io.BytesIO(file_bytes) as input_buffer:
         with Image.open(input_buffer) as img:
-            if max_dimension and max(img.width, img.height) > max_dimension:
+            if max_dimension:
                 img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
 
-            if grayscale:
-                img = img.convert("L")
-
-            if output_format.upper() in ["JPEG", "JPG"] and img.mode in (
-                "RGBA",
-                "P",
-                "LA",
-            ):
-                img = img.convert("RGB")
-            elif output_format.upper() in ["JPEG", "JPG"] and img.mode == "L":
-                pass
-
-            output_buffer = io.BytesIO()
             pil_format = output_format.upper()
             if pil_format == "JPG":
                 pil_format = "JPEG"
 
-            save_kwargs = {"format": pil_format}
+            if pil_format in ["JPEG", "JPG"]:
+                if img.mode in ("RGBA", "P", "LA"):
+                    img = img.convert("RGB")
 
-            if strip_exif:
-                pass
+            if grayscale:
+                if img.mode not in ("L", "LA"):
+                    if img.mode != "RGB":
+                        img = img.convert("RGB")
+                    img = img.convert("L")
+
+            save_kwargs: dict = {"format": pil_format}
 
             if pil_format in ["JPEG", "WEBP"]:
                 save_kwargs["quality"] = quality
+
                 if not strip_exif and hasattr(img, "info") and "exif" in img.info:
                     save_kwargs["exif"] = img.info["exif"]
+
             elif pil_format == "PNG":
                 save_kwargs["optimize"] = True
+                compress_level = round((quality - 1) / 99 * 9)
+                save_kwargs["compress_level"] = compress_level
 
+            output_buffer = io.BytesIO()
             img.save(output_buffer, **save_kwargs)
 
             ext = "jpg" if pil_format == "JPEG" else pil_format.lower()
@@ -70,6 +80,11 @@ async def process_image(
     grayscale: bool = False,
     strip_exif: bool = False,
 ) -> Tuple[bytes, str, int, int]:
+    if _pool is None:
+        raise RuntimeError(
+            "Image process pool is not initialised. "
+            "Ensure the FastAPI lifespan handler has started."
+        )
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
         _pool,
