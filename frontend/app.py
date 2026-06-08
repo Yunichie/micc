@@ -92,13 +92,6 @@ def _open_image(file_bytes: bytes) -> Image.Image:
 st.title("Image Converter and Optimizer")
 st.write("Unggah gambar Anda, pilih format dan kualitas, lalu konversi dengan mudah!")
 
-with st.sidebar:
-    st.header("Status Sistem")
-    if _cached_health():
-        st.success("Backend terhubung")
-    else:
-        st.error("Backend tidak terhubung")
-
 st.selectbox("Preset", list(PRESETS.keys()), key="s_preset")
 
 if st.session_state["s_preset"] != st.session_state["_applied_preset"]:
